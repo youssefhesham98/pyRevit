@@ -169,7 +169,7 @@
                                 <TextBlock Text="Index Start" Width="80"  VerticalAlignment="Center" DockPanel.Dock="Left"/>
                                 <Button Content="Reset" Width="50" DockPanel.Dock="Right"
                                         BorderThickness="0,1,1,1" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}"
-                                        Click="rest_index" />
+                                        Click="reset_index" />
                                 <TextBox x:Name="indexstart_tb" Text="0" Margin="10,0,0,0" VerticalContentAlignment="Center" Padding="5,0,0,0"
                                          PreviewTextInput="validate_index_start" TextChanged="options_changed"/>
                             </DockPanel>

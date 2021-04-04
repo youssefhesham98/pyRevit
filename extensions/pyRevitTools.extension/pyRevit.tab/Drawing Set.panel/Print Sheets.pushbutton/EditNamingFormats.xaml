@@ -3,7 +3,7 @@
         ShowInTaskbar="False"
         WindowStartupLocation="CenterScreen"
         HorizontalContentAlignment="Center"
-        ResizeMode="CanResizeWithGrip" SizeToContent="Height" Width="950" MinHeight="500"
+        ResizeMode="CanResizeWithGrip" SizeToContent="Height" Width="950" MinHeight="500" MinWidth="700"
         Title="Naming Formats" Closing="cancelled">
     <Window.Resources>
         <Style x:Key="FormatterTextBox" TargetType="{x:Type TextBox}">
@@ -56,25 +56,25 @@
         <StackPanel x:Name="namingformat_edit" Grid.Column="2" Margin="5,0,0,0">
             <TextBlock Text="Format Title" FontWeight="Medium" />
             <TextBlock TextWrapping="Wrap" Foreground="DimGray">
-                This is the name of this specific naming format. Give the format a descriptive
-                name that is easy to understand and find. For example: "City of Portland ePermit"
+            This is the name of this specific naming format. Give the format a descriptive
+            name that is easy to understand and find. For example: "City of Portland ePermit"
             </TextBlock>
             <TextBox x:Name="template_name_tb"
-                     Text="{Binding name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     Style="{StaticResource FormatterTextBox}"/>
+                    Text="{Binding name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    Style="{StaticResource FormatterTextBox}"/>
 
             <TextBlock Text="Template" FontWeight="Medium" Margin="0,10,0,0" />
             <TextBlock TextWrapping="Wrap" Foreground="DimGray">
-                This is the actual naming format template. Each "{}" (tag) represents a value that will be
-                filled when creating the name for a PDF file. Pick an choose from the tags listed
-                below and drag them to this box.
+            This is the actual naming format template. Each "{}" (tag) represents a value that will be
+            filled when creating the name for a PDF file. Pick and choose from the tags listed
+            below and drag them to this box. Make sure there are no nested tags in the final format
             </TextBlock>
             <TextBox x:Name="template_tb"
-                     Text="{Binding template, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     Style="{StaticResource FormatterTextBox}"
-                     AllowDrop="True" PreviewDrop="stop_drag" PreviewDragOver="preview_drag"/>
+                    Text="{Binding template, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    Style="{StaticResource FormatterTextBox}"
+                    AllowDrop="True" PreviewDrop="stop_drag" PreviewDragOver="preview_drag"/>
 
-            <TextBlock Text="Drag and drop from formatters below. Hover over the formatter for description" Foreground="DimGray" Margin="0,5,0,0"/>
+            <TextBlock Text="Drag from formatters below and drop on the template. Hover over formatters for description" Foreground="DimGray" Margin="0,5,0,0" TextWrapping="Wrap"/>
             <ItemsControl x:Name="formatters_wp" Margin="0,5,0,0">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -139,6 +139,21 @@
                                 <Setter TargetName="formatter_box" Property="Background" Value="Black" />
                             </DataTrigger>
                         </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="Drag from modifiers below and drop over a formatter in the template. Hover over modifiers for description" Foreground="DimGray" Margin="0,10,0,0" TextWrapping="Wrap"/>
+            <ItemsControl x:Name="modifier_wp" Margin="0,5,0,0">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel IsItemsHost="True" PreviewMouseLeftButtonDown="start_drag"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border x:Name="modifier_box" Height="20" Margin="5,5,0,0" Background="YellowGreen" BorderThickness="0" CornerRadius="5" ToolTip="{Binding desc}">
+                            <TextBlock Text="{Binding template}" FontFamily="Consolas" Foreground="White" VerticalAlignment="Center" Margin="5,0,5,0" Padding="0,0,0,1" />
+                        </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

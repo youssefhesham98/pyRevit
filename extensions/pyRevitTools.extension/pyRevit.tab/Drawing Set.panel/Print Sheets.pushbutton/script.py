@@ -24,6 +24,7 @@ import re
 import os.path as op
 import codecs
 from collections import namedtuple
+import datetime
 
 from pyrevit import HOST_APP
 from pyrevit import USER_DESKTOP
@@ -51,7 +52,8 @@ if HOST_APP.is_newer_than(2020):
 
 AvailableDoc = namedtuple('AvailableDoc', ['name', 'hash', 'linked'])
 
-NamingFormatter = namedtuple('NamingFormatter', ['template', 'desc'])
+NamingFormatter = namedtuple('NamingFormatter', ['template', 'desc', 'getter'])
+NamingModifier = namedtuple('NamingModifier', ['template', 'desc', 'modifier'])
 
 SheetRevision = namedtuple('SheetRevision', ['number', 'desc', 'date', 'is_set'])
 UNSET_REVISION = SheetRevision(number=None, desc=None, date=None, is_set=False)
@@ -247,98 +249,142 @@ class EditNamingFormatsWindow(forms.WPFWindow):
 
         self.reset_naming_formats()
         self.reset_formatters()
+        self.reset_modifiers()
 
     @staticmethod
     def get_default_formatters():
         return [
             NamingFormatter(
                 template='{index}',
-                desc='Print Index Number e.g. "0001"'
+                desc='Print Index Number e.g. "0001"',
+                getter=lambda d, p, s, v: s.print_index
             ),
             NamingFormatter(
                 template='{number}',
-                desc='Sheet Number e.g. "A1.00"'
+                desc='Sheet Number e.g. "A1.00"',
+                getter=lambda d, p, s, v: s.number
             ),
             NamingFormatter(
                 template='{name}',
-                desc='Sheet Name e.g. "1ST FLOOR PLAN"'
+                desc='Sheet Name e.g. "1ST FLOOR PLAN"',
+                getter=lambda d, p, s, v: s.name
             ),
             NamingFormatter(
                 template='{name_dash}',
-                desc='Sheet Name (with - for space) e.g. "1ST-FLOOR-PLAN"'
+                desc='Sheet Name (with - for space) e.g. "1ST-FLOOR-PLAN"',
+                getter=lambda d, p, s, v: s.name.replace(' ', '-')
             ),
             NamingFormatter(
                 template='{name_underline}',
-                desc='Sheet Name (with _ for space) e.g. "1ST_FLOOR_PLAN"'
+                desc='Sheet Name (with _ for space) e.g. "1ST_FLOOR_PLAN"',
+                getter=lambda d, p, s, v: s.name.replace(' ', '_')
             ),
             NamingFormatter(
                 template='{issue_date}',
-                desc='Sheet Issue Date e.g. "2019-10-12"'
+                desc='Sheet Issue Date e.g. "2019-10-12"',
+                getter=lambda d, p, s, v: s.issue_date
             ),
             NamingFormatter(
                 template='{rev_number}',
-                desc='Revision Number e.g. "01"'
+                desc='Revision Number e.g. "01"',
+                getter=lambda d, p, s, v: \
+                    s.revision.number if s.revision else ''
             ),
             NamingFormatter(
                 template='{rev_desc}',
-                desc='Revision Description e.g. "ASI01"'
+                desc='Revision Description e.g. "ASI01"',
+                getter=lambda d, p, s, v: s.revision.desc if s.revision else ''
             ),
             NamingFormatter(
                 template='{rev_date}',
-                desc='Revision Date e.g. "2019-10-12"'
+                desc='Revision Date e.g. "2019-10-12"',
+                getter=lambda d, p, s, v: s.revision.date if s.revision else ''
             ),
             NamingFormatter(
                 template='{proj_name}',
-                desc='Project Name e.g. "MY_PROJECT"'
+                desc='Project Name e.g. "MY_PROJECT"',
+                getter=lambda d, p, s, v: p.name
             ),
             NamingFormatter(
                 template='{proj_number}',
-                desc='Project Number e.g. "PR2019.12"'
+                desc='Project Number e.g. "PR2019.12"',
+                getter=lambda d, p, s, v: p.number
             ),
             NamingFormatter(
                 template='{proj_building_name}',
-                desc='Project Building Name e.g. "BLDG01"'
+                desc='Project Building Name e.g. "BLDG01"',
+                getter=lambda d, p, s, v: p.building_name
             ),
             NamingFormatter(
                 template='{proj_issue_date}',
-                desc='Project Issue Date e.g. "2019-10-12"'
+                desc='Project Issue Date e.g. "2019-10-12"',
+                getter=lambda d, p, s, v: p.issue_date
             ),
             NamingFormatter(
                 template='{proj_org_name}',
-                desc='Project Organization Name e.g. "MYCOMP"'
+                desc='Project Organization Name e.g. "MYCOMP"',
+                getter=lambda d, p, s, v: p.org_name
             ),
             NamingFormatter(
                 template='{proj_status}',
-                desc='Project Status e.g. "CD100"'
+                desc='Project Status e.g. "CD100"',
+                getter=lambda d, p, s, v: p.status
             ),
             NamingFormatter(
                 template='{username}',
-                desc='Active User e.g. "eirannejad"'
+                desc='Active User e.g. "eirannejad"',
+                getter=lambda d, p, s, v: HOST_APP.username
             ),
             NamingFormatter(
                 template='{revit_version}',
-                desc='Active Revit Version e.g. "2019"'
+                desc='Active Revit Version e.g. "2019"',
+                getter=lambda d, p, s, v: HOST_APP.version
             ),
             NamingFormatter(
                 template='{sheet_param:PARAM_NAME}',
                 desc='Value of Given Sheet Parameter e.g. '
-                     'Replace PARAM_NAME with target parameter name'
+                     'Replace PARAM_NAME with target parameter name',
+                getter=lambda d, p, s, v: revit.query.get_param_value(
+                    revit.query.get_param(s.revit_sheet, v)
+                )
             ),
             NamingFormatter(
                 template='{tblock_param:PARAM_NAME}',
                 desc='Value of Given TitleBlock Parameter e.g. '
-                     'Replace PARAM_NAME with target parameter name'
+                     'Replace PARAM_NAME with target parameter name',
+                getter=lambda d, p, s, v: revit.query.get_param_value(
+                    revit.query.get_param(s.revit_tblock, v)
+                ) or revit.query.get_param_value(
+                    revit.query.get_param(s.revit_tblock_type, v)
+                )
             ),
             NamingFormatter(
                 template='{proj_param:PARAM_NAME}',
                 desc='Value of Given Project Information Parameter e.g. '
-                     'Replace PARAM_NAME with target parameter name'
+                     'Replace PARAM_NAME with target parameter name',
+                getter=lambda d, p, s, v: revit.query.get_param_value(
+                    d.ProjectInformation.LookupParameter(v)
+                )
             ),
             NamingFormatter(
                 template='{glob_param:PARAM_NAME}',
                 desc='Value of Given Global Parameter. '
-                     'Replace PARAM_NAME with target parameter name'
+                     'Replace PARAM_NAME with target parameter name',
+                getter=lambda d, p, s, v: revit.query.get_param_value(
+                    revit.query.get_global_parameter(v, doc=d)
+                )
             ),
+        ]
+
+    @staticmethod
+    def get_default_modifiers():
+        return [
+            NamingModifier(
+                template='date:FROM:TO',
+                desc="Convert date format",
+                modifier=lambda a, v: \
+                    datetime.datetime.strptime(v, a[0]).strftime(a[1])
+            )
         ]
 
     @staticmethod
@@ -394,6 +440,10 @@ class EditNamingFormatsWindow(forms.WPFWindow):
         self.formatters_wp.ItemsSource = \
             EditNamingFormatsWindow.get_default_formatters()
 
+    def reset_modifiers(self):
+        self.modifier_wp.ItemsSource = \
+            EditNamingFormatsWindow.get_default_modifiers()
+
     def reset_naming_formats(self):
         self.formats_lb.ItemsSource = \
                 ObjectModel.ObservableCollection[object](
@@ -432,9 +482,12 @@ class EditNamingFormatsWindow(forms.WPFWindow):
     def stop_drag(self, sender, args):
         name_formatter = args.Data.GetData("name_formatter")
         if name_formatter:
+            insert_template = name_formatter.template
+            if isinstance(name_formatter, NamingModifier):
+                insert_template = "|" + insert_template
             new_template = \
                 str(self.template_tb.Text)[:self._drop_pos] \
-                + name_formatter.template \
+                + insert_template \
                 + str(self.template_tb.Text)[self._drop_pos:]
             self.template_tb.Text = new_template
             self.template_tb.Focus()
@@ -578,7 +631,6 @@ class PrintSheetsWindow(forms.WPFWindow):
         self._init_psettings = None
         self._scheduled_sheets = []
 
-        self.project_info = revit.query.get_project_info(doc=revit.doc)
         self.sheet_cat_id = \
             revit.query.get_category(DB.BuiltInCategory.OST_Sheets).Id
 
@@ -1004,50 +1056,12 @@ class PrintSheetsWindow(forms.WPFWindow):
             template = re.sub(repl_pattern, '', template)
         return template
 
-    def _update_print_filename(self, template, sheet):
-        # resolve sheet-level custom param values
-        ## get titleblock param values
-        template = self._update_filename_template(
-            template=template,
-            value_type='tblock_param',
-            value_getter=lambda x: revit.query.get_param_value(
-                    revit.query.get_param(sheet.revit_tblock, x)
-                ) or revit.query.get_param_value(
-                    revit.query.get_param(sheet.revit_tblock_type, x)
-                )
-        )
+    def _update_print_filename(self, naming_fmt, sheet):
+        doc = self.selected_doc
+        project_info = revit.query.get_project_info(doc=doc)
 
-        ## get sheet param values
-        template = self._update_filename_template(
-            template=template,
-            value_type='sheet_param',
-            value_getter=lambda x: revit.query.get_param_value(
-                revit.query.get_param(sheet.revit_sheet, x)
-                )
-        )
-
-        # resolved the fixed formatters
         try:
-            output_fname = \
-                template.format(
-                    index=sheet.print_index,
-                    number=sheet.number,
-                    name=sheet.name,
-                    name_dash=sheet.name.replace(' ', '-'),
-                    name_underline=sheet.name.replace(' ', '_'),
-                    issue_date=sheet.issue_date,
-                    rev_number=sheet.revision.number if sheet.revision else '',
-                    rev_desc=sheet.revision.desc if sheet.revision else '',
-                    rev_date=sheet.revision.date if sheet.revision else '',
-                    proj_name=self.project_info.name,
-                    proj_number=self.project_info.number,
-                    proj_building_name=self.project_info.building_name,
-                    proj_issue_date=self.project_info.issue_date,
-                    proj_org_name=self.project_info.org_name,
-                    proj_status=self.project_info.status,
-                    username=HOST_APP.username,
-                    revit_version=HOST_APP.version,
-                )
+            output_fname = naming_fmt.template
         except Exception as ferr:
             output_fname = ''
             if isinstance(ferr, KeyError):
@@ -1056,31 +1070,10 @@ class PrintSheetsWindow(forms.WPFWindow):
         sheet.print_filename = output_fname
 
     def _update_print_filenames(self, sheet_list):
-        doc = self.selected_doc
         naming_fmt = self.selected_naming_format
         if naming_fmt:
-            template = naming_fmt.template
-            # resolve project-level custom param values
-            ## project info param values
-            template = self._update_filename_template(
-                template=template,
-                value_type='proj_param',
-                value_getter=lambda x: revit.query.get_param_value(
-                    doc.ProjectInformation.LookupParameter(x)
-                    )
-            )
-
-            ## global param values
-            template = self._update_filename_template(
-                template=template,
-                value_type='glob_param',
-                value_getter=lambda x: revit.query.get_param_value(
-                    revit.query.get_global_parameter(x, doc=doc)
-                    )
-            )
-
             for sheet in sheet_list:
-                self._update_print_filename(template, sheet)
+                self._update_print_filename(naming_fmt, sheet)
 
     def _find_sheet_tblock(self, revit_sheet, tblocks):
         for tblock in tblocks:
@@ -1158,7 +1151,6 @@ class PrintSheetsWindow(forms.WPFWindow):
 
     # event handlers
     def doclist_changed(self, sender, args):
-        self.project_info = revit.query.get_project_info(doc=self.selected_doc)
         self._setup_printers()
         self._setup_print_settings()
         self._setup_sheet_list()
@@ -1314,7 +1306,7 @@ class PrintSheetsWindow(forms.WPFWindow):
     def validate_index_start(self, sender, args):
         args.Handled = re.match(r'[^0-9]+', args.Text)
 
-    def rest_index(self, sender, args):
+    def reset_index(self, sender, args):
         self.indexstart_tb.Text = '0'
 
     def edit_formats(self, sender, args):
