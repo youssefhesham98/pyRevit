@@ -87,11 +87,14 @@ class SettingsWindow(forms.WPFWindow):
         # check boxes for each version of Revit
         # this could be automated but it pushes me to verify and test
         # before actually adding a new Revit version to the list
-        self._addinfiles_cboxes = {'2017': self.revit2017_cb,
-                                   '2018': self.revit2018_cb,
-                                   '2019': self.revit2019_cb,
-                                   '2020': self.revit2020_cb,
-                                   '2021': self.revit2021_cb}
+        self._addinfiles_cboxes = {
+            '2017': self.revit2017_cb,
+            '2018': self.revit2018_cb,
+            '2019': self.revit2019_cb,
+            '2020': self.revit2020_cb,
+            '2021': self.revit2021_cb,
+            '2022': self.revit2022_cb,
+            }
 
         self.set_image_source(self.lognone, 'lognone.png')
         self.set_image_source(self.logverbose, 'logverbose.png')
@@ -384,16 +387,20 @@ class SettingsWindow(forms.WPFWindow):
                             attachments[rvt_ver].Product,
                             ''
                             )
-                    checkbox.IsEnabled = True
-                    checkbox.IsChecked = True
                 else:
                     checkbox.Content = \
                         self._make_product_name(
                             attachments[rvt_ver].Product,
-                            '<Current version>'
+                            '<current>'
                             )
+
+                checkbox.IsChecked = True
+                if attachments[rvt_ver].AttachmentType == \
+                        PyRevit.PyRevitAttachmentType.AllUsers:
                     checkbox.IsEnabled = False
-                    checkbox.IsChecked = True
+                    checkbox.Content += " <all users>"
+                else:
+                    checkbox.IsEnabled = True
             else:
                 if rvt_ver in installed_revits:
                     checkbox.Content = \
@@ -417,8 +424,11 @@ class SettingsWindow(forms.WPFWindow):
         # update active engine
         attachment = user_config.get_current_attachment()
         if attachment:
-            all_users = attachment.AttachmentType == \
-                PyRevit.PyRevitAttachmentType.AllUsers
+            # if attachment is for all users dont attempt at making changes
+            # user probably does not have write access and this fails
+            if attachment.AttachmentType == \
+                    PyRevit.PyRevitAttachmentType.AllUsers:
+                return
 
             # notify use to restart if engine has changed
             if self.availableEngines.SelectedItem:
@@ -431,7 +441,7 @@ class SettingsWindow(forms.WPFWindow):
                     int(HOST_APP.version),
                     attachment.Clone,
                     new_engine,
-                    all_users
+                    False
                     )
 
                 # now setup the attachments for other versions
@@ -442,7 +452,7 @@ class SettingsWindow(forms.WPFWindow):
                                 int(rvt_ver),
                                 attachment.Clone,
                                 new_engine,
-                                all_users
+                                False
                                 )
                         else:
                             PyRevit.PyRevitAttachments.Detach(int(rvt_ver))
