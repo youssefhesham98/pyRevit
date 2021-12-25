@@ -413,11 +413,7 @@ def checkModel(doc, output):
     scheduleCount = 0
     ### scheduleNames = []
     for schedule in schedules_id_collector:
-        if (
-            schedule.Name[:19] != "<Revision Schedule>"
-            # to support french files
-            or schedule.Name[:28] != "<Nomenclature des révisions>"
-        ):
+        if not(schedule.IsTitleblockRevisionSchedule):
             scheduleCount += 1
     ###        scheduleNames.append((schedule.Name))
     ### output.print_md("<br />".join(scheduleNames))
@@ -604,17 +600,21 @@ def checkModel(doc, output):
     )
 
     # model groups
-    modelGroupCount = (
+    modelGroup = (
         DB.FilteredElementCollector(doc)
         .OfCategory(DB.BuiltInCategory.OST_IOSModelGroups)
-        .WhereElementIsNotElementType()
-        .GetElementCount()
+        .WhereElementIsNotElementType()   
     )
+    modelGroupCount = 0
+    for element in modelGroup:
+        if element.GroupId and element.GroupId != DB.ElementId.InvalidElementId:
+            modelGroupCount += 1
+
     modelGroupTypeCount = (
         DB.FilteredElementCollector(doc)
         .OfCategory(DB.BuiltInCategory.OST_IOSModelGroups)
+        .WhereElementIsElementType()
         .GetElementCount()
-        - modelGroupCount
     )
 
     # reference plane without name
